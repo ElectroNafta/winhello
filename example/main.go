@@ -8,12 +8,12 @@ import (
 
 	"github.com/go-ctap/ctaphid/pkg/webauthntypes"
 	"github.com/go-ctap/winhello"
-	"github.com/go-ctap/winhello/hiddenwindow"
+	"github.com/go-ctap/winhello/window"
 	"github.com/goforj/godump"
 )
 
 func main() {
-	wnd, err := hiddenwindow.New(slog.New(slog.DiscardHandler), "WinHello Example")
+	wnd, err := window.New(slog.New(slog.DiscardHandler), "WinHello Example")
 	if err != nil {
 		panic(err)
 	}

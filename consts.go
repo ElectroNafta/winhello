@@ -7,18 +7,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/go-ctap/ctaphid/pkg/ctaptypes"
 	"github.com/go-ctap/ctaphid/pkg/webauthntypes"
 	"golang.org/x/sys/windows"
-)
-
-type WinHelloHashAlgorithm string
-
-const (
-	WinHelloHashAlgorithmSHA256 WinHelloHashAlgorithm = "SHA-256"
-	WinHelloHashAlgorithmSHA384 WinHelloHashAlgorithm = "SHA-384"
-	WinHelloHashAlgorithmSHA512 WinHelloHashAlgorithm = "SHA-512"
 )
 
 type WinHelloCOSEAlgorithm int32
@@ -156,7 +147,7 @@ type WinHelloGetAssertionResponse struct {
 	hmacSecret          *webauthntypes.AuthenticationExtensionsPRFValues
 }
 
-func (a *_WEBAUTHN_ASSERTION) ToGetAssertionResponse() (
+func (a *WEBAUTHN_ASSERTION) ToGetAssertionResponse() (
 	*WinHelloGetAssertionResponse,
 	error,
 ) {
@@ -187,21 +178,6 @@ func (a *_WEBAUTHN_ASSERTION) ToGetAssertionResponse() (
 		AuthenticatorGetAssertionResponse: resp,
 		CredLargeBlob:                     bytes.Clone(unsafe.Slice(a.PbCredLargeBlob, a.CbCredLargeBlob)),
 		CredLargeBlobStatus:               WinHelloCredentialLargeBlobStatus(a.DwCredLargeBlobStatus),
-		UsedTransport:                     flagsToTransports(a.DwUsedTransport),
-	}
-
-	if a.PHmacSecret != nil {
-		winHelloResp.hmacSecret = &webauthntypes.AuthenticationExtensionsPRFValues{
-			First:  bytes.Clone(unsafe.Slice(a.PHmacSecret.PbFirst, a.PHmacSecret.CbFirst)),
-			Second: bytes.Clone(unsafe.Slice(a.PHmacSecret.PbSecond, a.PHmacSecret.CbSecond)),
-		}
-	}
-
-	unsignedExtensionOutputsRaw := bytes.Clone(unsafe.Slice(a.PbUnsignedExtensionOutputs, a.CbUnsignedExtensionOutputs))
-	if unsignedExtensionOutputsRaw != nil && len(unsignedExtensionOutputsRaw) > 0 {
-		if err := cbor.Unmarshal(unsignedExtensionOutputsRaw, &resp.UnsignedExtensionOutputs); err != nil {
-			return nil, err
-		}
 	}
 
 	return winHelloResp, nil
@@ -221,83 +197,4 @@ type AuthenticatorMakeCredentialOptions struct {
 	JsonExt                         []byte
 	CredentialHints                 []webauthntypes.PublicKeyCredentialHint
 	ThirdPartyPayment               bool
-}
-
-type WinHelloMakeCredentialResponse struct {
-	*ctaptypes.AuthenticatorMakeCredentialResponse
-	CredentialID       []byte
-	UsedTransport      []webauthntypes.AuthenticatorTransport
-	LargeBlobSupported bool
-	ResidentKey        bool
-	PRFEnabled         bool
-	HMACSecret         *webauthntypes.AuthenticationExtensionsPRFValues
-	ThirdPartyPayment  bool
-}
-
-func (a *_WEBAUTHN_CREDENTIAL_ATTESTATION) ToMakeCredentialResponse() (*WinHelloMakeCredentialResponse, error) {
-	authDataRaw := bytes.Clone(unsafe.Slice(a.PbAuthenticatorData, a.CbAuthenticatorData))
-	authData, err := ctaptypes.ParseMakeCredentialAuthData(authDataRaw)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := &ctaptypes.AuthenticatorMakeCredentialResponse{
-		Format:      webauthntypes.AttestationStatementFormatIdentifier(windows.UTF16PtrToString(a.PwszFormatType)),
-		AuthData:    authData,
-		AuthDataRaw: authDataRaw,
-	}
-
-	attestationRaw := bytes.Clone(unsafe.Slice(a.PbAttestation, a.CbAttestation))
-	if resp.Format != webauthntypes.AttestationStatementFormatIdentifierNone &&
-		attestationRaw != nil &&
-		len(attestationRaw) > 0 {
-		if err := cbor.Unmarshal(attestationRaw, &resp.AttestationStatement); err != nil {
-			return nil, err
-		}
-	}
-
-	winHelloResp := &WinHelloMakeCredentialResponse{
-		AuthenticatorMakeCredentialResponse: resp,
-		CredentialID:                        bytes.Clone(unsafe.Slice(a.PbCredentialId, a.CbCredentialId)),
-		UsedTransport:                       flagsToTransports(a.DwUsedTransport),
-		LargeBlobSupported:                  int32ToBool(a.BLargeBlobSupported),
-		ResidentKey:                         int32ToBool(a.BResidentKey),
-		PRFEnabled:                          int32ToBool(a.BPrfEnabled),
-		ThirdPartyPayment:                   int32ToBool(a.BThirdPartyPayment),
-	}
-
-	if a.PHmacSecret != nil {
-		winHelloResp.HMACSecret = &webauthntypes.AuthenticationExtensionsPRFValues{
-			First:  bytes.Clone(unsafe.Slice(a.PHmacSecret.PbFirst, a.PHmacSecret.CbFirst)),
-			Second: bytes.Clone(unsafe.Slice(a.PHmacSecret.PbSecond, a.PHmacSecret.CbSecond)),
-		}
-	}
-
-	unsignedExtensionOutputsRaw := bytes.Clone(unsafe.Slice(a.PbUnsignedExtensionOutputs, a.CbUnsignedExtensionOutputs))
-	if unsignedExtensionOutputsRaw != nil && len(unsignedExtensionOutputsRaw) > 0 {
-		if err := cbor.Unmarshal(unsignedExtensionOutputsRaw, &resp.UnsignedExtensionOutputs); err != nil {
-			return nil, err
-		}
-	}
-
-	return winHelloResp, nil
-}
-
-func flagsToTransports(flags uint32) []webauthntypes.AuthenticatorTransport {
-	var tr []webauthntypes.AuthenticatorTransport
-
-	switch {
-	case flags&uint32(WinHelloCTAPTransportUSB) != 0:
-		tr = append(tr, webauthntypes.AuthenticatorTransportUSB)
-	case flags&uint32(WinHelloCTAPTransportNFC) != 0:
-		tr = append(tr, webauthntypes.AuthenticatorTransportNFC)
-	case flags&uint32(WinHelloCTAPTransportBLE) != 0:
-		tr = append(tr, webauthntypes.AuthenticatorTransportBLE)
-	case flags&uint32(WinHelloCTAPTransportInternal) != 0:
-		tr = append(tr, webauthntypes.AuthenticatorTransportInternal)
-	case flags&uint32(WinHelloCTAPTransportHybrid) != 0:
-		tr = append(tr, webauthntypes.AuthenticatorTransportHybrid)
-	}
-
-	return tr
 }

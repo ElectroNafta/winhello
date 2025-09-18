@@ -1986,4 +1986,3 @@ EXPERIMENTAL_WebAuthNEncodeGetAssertionResponse(
 
 #endif // WINAPI_FAMILY_PARTITION
 #pragma endregion
-

@@ -67,6 +67,12 @@ func availableVersions(ver uint32) *currentVersion {
 			v.credentialAttestation++
 			v.authenticatorGetAssertionOptions++
 		}, // 8
+		func(v *currentVersion) {
+			v.authenticatorMakeCredentialOptions++
+			v.credentialDetails++
+			v.credentialAttestation++
+			v.authenticatorGetAssertionOptions++
+		},
 	}
 
 	for i, d := range diff {
